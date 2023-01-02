@@ -495,7 +495,7 @@ class DataLogManager:
 
     def productsToUpdate(self,seller_id):  #Extraer datos de la Meli_Account X
        
-        sql = f"""select * from products_info_customers where seller_id = {seller_id} and app_status = 1"""
+        sql = f"""select * from products_info_customers where seller_id = {seller_id} and app_status = 1 """
 
         again = 0
         while again == 0:

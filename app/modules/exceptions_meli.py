@@ -4,72 +4,103 @@
 # Modulo que maneja los errores al hacer llamados a la api de Mercadolibre.
 # Falta agregar el error de limite maximo de piblicaciones diarias
 # maximum daily quote. algo asi.
-import os
+# import os
+import json
 from os import remove
 import time
 from modules.cronometro import access_token_memory
 
-path = os.getcwd() + "/data/txt/"# ruta path carpeta actual
-path_old_access_token0 = path + "old_access_token0.txt"
-path_old_access_token1 = path + "old_access_token1.txt"
-path_old_access_token2 = path + "old_access_token2.txt"
+# path = '/tmp/' # ruta path carpeta actual
+# path_old_access_token0 = path + "old_access_token0.txt"
+# path_old_access_token1 = path + "old_access_token1.txt"
+# path_old_access_token2 = path + "old_access_token2.txt"
 
-def fixerr_item(e,ACCOUNT,access_token):
+def fixerr_item(rta,seller_id,access_token,databaseName):
 
     # a es una bandera que indica si se debe repetir el ciclo o no
-    print(f"Ups! Hubo un error, lee el body: {e.body}")   
+    print(f"Ups! Hubo un error, lee el body: {rta['message']}")   
 
-    if e.status == 400:
-        print('\nError en la data - Nada que hacer ... Next Item ->\n')
+    if rta['status'] == 400:
+        print('\nError en la data - ... Revisar rta ->\n')
+        print('rta: ',rta)
+        item_closed_msg =  '[status:closed, has_bids:false]'
+        item_inactive_msg = '[status:under_review, has_bids:false]'
+        # Imprimo el mensaje para pruebas
+        try:
+            #print(f'rta: {rta}')
+            e_body = rta['message'] #mesnaje response mercadolibre
+            print(f'e_body: {e_body}')
+        except:
+            print('no mensaje Error Mercadolibre')
+            e_body = ''
+        # Pregunto si el mensaje del error es igual a item_closed_msg
+        #print('body ',e_body)
+        if item_closed_msg in e_body:
+            # 400 - Bad Request
+            # Item eliminado de la cuenta  - closed
+            print('\n @@@@  Item closed @@@\n' )
+            # IMPORTANTE ACTUALIZAR BASE DE DATOS
+            # objectConn = DataLogManager("ecommerce")
+            # objectConn.updateProducts("meli_publications", id,"id_meli_publication", **{"status_publication": "closed", "date_updated":date})
+        
         a = 2 # Fail, Saltar al siguiente articulo
         return a,access_token
         
-    elif e.status == 500:
+    elif rta['status'] == 500:
         print('\nError del Servidor 500... reintentar request...\n')
         a = 0 # Reintentar
         return a,access_token
 
-    elif e.status == 409:
+    elif rta['status'] == 409:
         print('\nError Conflicto Mshops 409... reintentar request...\n')
         a = 0 # Reintentar
         return a,access_token
+    
+    elif rta['status'] == 403:
+        print(f'\nError 403 Item Existe pero Inaccesible\n')
+        #ACTUALIZAR BASE DE DATOS. INFO VALIOSA
+        #objectConn = DataLogManager("ecommerce")
+        #objectConn.updateProducts("meli_publications", id,"id_meli_publication",  **{"status_publication": "noExist", "date_updated":date})
+        a = 2 # NO Reintentar
+        return a,access_token
+    
+    elif rta['status'] == 404:
+        print(f'\nError 404 Item No encontrado en Meli\n')
+        #ACTUALIZAR BASE DE DATOS. INFO VALIOSA
+        #objectConn = DataLogManager("ecommerce")
+        #objectConn.updateProducts("meli_publications", id,"id_meli_publication",  **{"status_publication": "noExist", "date_updated":date})
+        a = 2 # NO Reintentar
+        return a,access_token
 
-    elif e.status == 429:
+    elif rta['status'] == 429:
         print('\nError Too Many Request... reintentar request...\n')
         a = 0 # Reintentar
         time.sleep(7)
         return a,access_token
 
-    elif e.status == 401: #Error en el token - actualizar token
+    elif rta['status'] == 401: #Error en el token - actualizar token
 
         #POSIBLE ERROR DE TOKEN
         #ELIMINAR old_access_token
+        path = '/tmp/'
+        path_old_access_token = path + f"old_access_token{seller_id}.txt"
         
         try:
-            # ACCOUNT = 0
-            remove(path_old_access_token0)
-            print('\nSe removió el archivo old_access_token0.txt\n')
+            # seller_id = 0
+            remove(path_old_access_token)
+            print(f'\nSe removió el archivo old_access_token{seller_id}.txt\n')
         except:
             pass
-        try:
-            # ACCOUNT = 1
-            remove(path_old_access_token1)
-            print('\nSe removió el archivo old_access_token1.txt\n')
-        except:
-            pass
-        try:
-            # ACCOUNT = 2
-            remove(path_old_access_token2)
-            print('\nSe removió el archivo old_access_token2.txt\n')
-        except:
-            pass
+     
 
         a = 0 # Reintentar
-        access_token = access_token_memory(ACCOUNT)  #cronometro modulo
-        print('\nYa se actualizo el token, reintentando request...\n')
+        access_token = access_token_memory(seller_id,databaseName)  #cronometro modulo
+        #print('\nYa se actualizo el token, reintentando request...\n')
         return a,access_token
 
     else:
-        print('\nNuevo Error Meli o Error de Google Api')
+
+        print('\nNuevo Error Meli')
+        #access_token = access_token_memory(seller_id,databaseName) 
         a = 2 # Pasar al siguiente articulo
         return a,access_token
