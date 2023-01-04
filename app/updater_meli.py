@@ -188,10 +188,13 @@ for i in range(df_meli.shape[0]):
             print(f'response.status_code: {response.status_code}')
             if response.status_code > 299:
                 #INVOCAR MANEJADOR DE ERRORES 
-                secure,access_token = fixerr_item(rta,seller_id,access_token,databaseName)
+                secure,access_token = fixerr_item(rta,seller_id,access_token,databaseName,id)
             else:
                 status = rta['status']  
-                print(f'\n*** 404 status item: {status} ***\n')
+                print(f'\n*** 404 status item: {status} ***\n') 
+                # IMPORTANTE ACTUALIZAR BASE DE DATOS
+                objectConn = DataLogManager("ecommerce_prueba")
+                objectConn.updateProducts("products_info_customers", id,"id_meli",  **{"meli_status": status, "date_updated":date})
                 secure = 2
         
         continue  
@@ -302,22 +305,21 @@ for i in range(df_meli.shape[0]):
         print(f'response.status_code: {response.status_code}')
         if response.status_code > 299:
             #INVOCAR MANEJADOR DE ERRORES 
-            secure,access_token = fixerr_item(rta,seller_id,access_token,databaseName)
+            secure,access_token = fixerr_item(rta,seller_id,access_token,databaseName,id)
 
-        
         else:
             status = rta['status']
             rtaPrice = rta['price']
             print(f'\n*** PRODUCTO STATUS: {status} priceResponse {rtaPrice} ***\n')
+            #GUARDO EN BASE DE DATOS EL STATUS MELI
+            objectConn = DataLogManager("ecommerce_prueba")
+            objectConn.updateProducts("products_info_customers", id,"id_meli",  **{"meli_status": status, "date_updated":date})
             secure = 2  
     
     # else:
     #     status = 'active'
 
 
-    #GUARDO EN BASE DE DATOS EL STATUS MELI
-    objectConn = DataLogManager("ecommerce_prueba")
-    objectConn.updateProducts("products_info_customers", id,"id_meli",  **{"meli_status": status, "date_updated":date})
 
 
     # # # PASO 2. SI LA PUBLICACION ESTA ACTIVA

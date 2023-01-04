@@ -9,16 +9,19 @@ import json
 from os import remove
 import time
 from modules.cronometro import access_token_memory
+from modules.mysqlCRUD import DataLogManager
+from datetime import datetime
 
 # path = '/tmp/' # ruta path carpeta actual
 # path_old_access_token0 = path + "old_access_token0.txt"
 # path_old_access_token1 = path + "old_access_token1.txt"
 # path_old_access_token2 = path + "old_access_token2.txt"
 
-def fixerr_item(rta,seller_id,access_token,databaseName):
+def fixerr_item(rta,seller_id,access_token,databaseName,id):
 
     # a es una bandera que indica si se debe repetir el ciclo o no
     print(f"Ups! Hubo un error, lee el body: {rta['message']}")   
+    date = str(datetime.now()).split(".")[0]
 
     if rta['status'] == 400:
         print('\nError en la data - ... Revisar rta ->\n')
@@ -39,10 +42,18 @@ def fixerr_item(rta,seller_id,access_token,databaseName):
             # 400 - Bad Request
             # Item eliminado de la cuenta  - closed
             print('\n @@@@  Item closed @@@\n' )
+            status = 'closed'
             # IMPORTANTE ACTUALIZAR BASE DE DATOS
-            # objectConn = DataLogManager("ecommerce")
-            # objectConn.updateProducts("meli_publications", id,"id_meli_publication", **{"status_publication": "closed", "date_updated":date})
-        
+            objectConn = DataLogManager("ecommerce_prueba")
+            objectConn.updateProducts("products_info_customers", id,"id_meli",  **{"meli_status": status, "date_updated":date})
+        elif item_inactive_msg in e_body:
+            print('\n @@@@  Item inactive @@@\n' )
+            status = 'under_review'
+            # IMPORTANTE ACTUALIZAR BASE DE DATOS
+            objectConn = DataLogManager("ecommerce_prueba")
+            objectConn.updateProducts("products_info_customers", id,"id_meli",  **{"meli_status": status, "date_updated":date})
+
+
         a = 2 # Fail, Saltar al siguiente articulo
         return a,access_token
         
@@ -58,18 +69,20 @@ def fixerr_item(rta,seller_id,access_token,databaseName):
     
     elif rta['status'] == 403:
         print(f'\nError 403 Item Existe pero Inaccesible\n')
-        #ACTUALIZAR BASE DE DATOS. INFO VALIOSA
-        #objectConn = DataLogManager("ecommerce")
-        #objectConn.updateProducts("meli_publications", id,"id_meli_publication",  **{"status_publication": "noExist", "date_updated":date})
+        status = 'forbidden'
+        # IMPORTANTE ACTUALIZAR BASE DE DATOS
+        objectConn = DataLogManager("ecommerce_prueba")
+        objectConn.updateProducts("products_info_customers", id,"id_meli",  **{"meli_status": status, "date_updated":date})
         a = 2 # NO Reintentar
         return a,access_token
     
     elif rta['status'] == 404:
         print(f'\nError 404 Item No encontrado en Meli\n')
-        #ACTUALIZAR BASE DE DATOS. INFO VALIOSA
-        #objectConn = DataLogManager("ecommerce")
-        #objectConn.updateProducts("meli_publications", id,"id_meli_publication",  **{"status_publication": "noExist", "date_updated":date})
-        a = 2 # NO Reintentar
+        status = 'not_found'
+        # IMPORTANTE ACTUALIZAR BASE DE DATOS
+        objectConn = DataLogManager("ecommerce_prueba")
+        objectConn.updateProducts("products_info_customers", id,"id_meli",  **{"meli_status": status, "date_updated":date})
+        a = 2 # NO Reintentar        a = 2 # NO Reintentar
         return a,access_token
 
     elif rta['status'] == 429:
