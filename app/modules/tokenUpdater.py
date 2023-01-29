@@ -14,6 +14,7 @@
 #from meli.rest import ApiException
 
 # Librerias Agregadas By Miguel
+import time
 import json
 from datetime import datetime
 from modules.mysqlCRUD import DataLogManager
@@ -54,30 +55,32 @@ def tokenUpdater(seller_id,databaseName):
             }
             response = apiMeliController('POST',endpoint,'',body)
             api_response = json.loads(response.text)
-            # Save refresh and access token at Google Sheet
-            access_token = api_response['access_token']
-            refresh_token = api_response['refresh_token']
-
-            #Fecha ultima actualizacion
-            date = str(datetime.now()).split(".")[0]
-            
-            
-            obj_connect = DataLogManager(databaseName)
-            data_to_update = {"refresh_token": refresh_token, "access_token": access_token, "date_account_updated": date}
-            obj_connect.updateAccessTokenMeli(seller_id, **data_to_update)
-            print("Access Token and Refresh Token Sent Successfully\n")
-
-            secure = 1 #Salir del WHile
-
-        except Exception as e:
-            error = e.status   
-            print(f"Error obteniendo access token de Mercadolibre: {error}")
-            
-            if error == 500 or error == 429: #Error del servidor o Too Many Request
-                secure = 0 # Reintentar peticion
-                print('reintentado peticion a mercadolibre...')
+            # Save refresh and access token database
+            if response.status_code > 299:
+                #INVOCAR MANEJADOR DE ERRORES 
+                print(api_response)
+                time.sleep(5)
+                secure = 0
             else:
-                print(e)
-                secure = 1 # No reintentar peticion, error desconocido
+                access_token = api_response['access_token']
+                refresh_token = api_response['refresh_token']
+
+                #Fecha ultima actualizacion
+                date = str(datetime.now()).split(".")[0]
+            
+            
+                obj_connect = DataLogManager(databaseName)
+                data_to_update = {"refresh_token": refresh_token, "access_token": access_token, "date_account_updated": date}
+                obj_connect.updateAccessTokenMeli(seller_id, **data_to_update)
+                print("Access Token and Refresh Token Sent Successfully\n")
+
+                secure = 1 #Salir del WHile
+
+        except Exception as error:
+               
+            print(f"Error obteniendo access token de Mercadolibre: {error}")
+
+            access_token = ''
+            secure = 1 # No reintentar peticion, error desconocido
                 
     return access_token        
