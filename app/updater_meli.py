@@ -299,6 +299,50 @@ def updater_meli(seller_id, pack1000, quantity_pack1000) :
         
         # if statusError != 409:
         print(f"ACTUALIZANDO PRECIO MELI: {body['price']}")
+        ###############################################################
+        # REVISANDO VARIANTES
+        ###############################################################
+        rutaConsultarVariantes =  f'items/{id}/variations'
+        print('rutaConsultarVariantes: ',rutaConsultarVariantes)
+        secure = 0
+        while secure == 0:
+            response = apiMeliController('GET',rutaConsultarVariantes,'','')
+            rta = json.loads(response.text)
+            print('1rta: ',rta)
+            #VALIDADMOS SI FUE EXITOSO O NO
+            print(f'1. response.status_code: {response.status_code}')
+            if response.status_code > 299:
+                #INVOCAR MANEJADOR DE ERRORES 
+                continue
+            else:
+                if rta != []:
+                    idVariante = rta[0]['id']
+                    #ACTUALIZAR PRECIO DE VARIANTE
+                    bodyVariante = {
+                        "variations": [{
+                                "id": idVariante,
+                                "price": body['price'],
+                                "available_quantity":body['available_quantity'] ,
+                                # "sale_terms": body['sale_terms'] 
+                            }
+                        ]
+                    }
+                    print('bodyVariante: ',bodyVariante)
+                    while secure == 0:
+                        response = apiMeliController('PUT',ruta,access_token,bodyVariante)
+                        rta = json.loads(response.text)
+                        print(f'2. response.status_code: {response.status_code}')
+                        if response.status_code > 299:
+                            #INVOCAR MANEJADOR DE ERRORES 
+                            secure,access_token = fixerr_item(rta,seller_id,access_token,databaseName,id)
+                        else:
+                            # print('2rta: ',rta)
+                            body = { "sale_terms": [diccionario]}
+                            secure = 1
+                else:
+                    #No tiene variantes
+                    secure = 1
+        ###############################################################
         # if percentMeli >= 5 and percentMeli <= 75:
         #COMENTADO 5/11/2022
         # # # # body['price'] = meli_regular_price
@@ -308,7 +352,7 @@ def updater_meli(seller_id, pack1000, quantity_pack1000) :
             response = apiMeliController('PUT',ruta,access_token,body)
             rta = json.loads(response.text)
             #VALIDADMOS SI FUE EXITOSO O NO
-            print(f'response.status_code: {response.status_code}')
+            print(f'3. response.status_code: {response.status_code}')
             if response.status_code > 299:
                 #INVOCAR MANEJADOR DE ERRORES 
                 secure,access_token = fixerr_item(rta,seller_id,access_token,databaseName,id)
