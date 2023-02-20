@@ -81,14 +81,17 @@ SE AHORRA TIEMPO Y RECUERSOS
 '''
 
 def updater_meli(seller_id, pack1000, quantity_pack1000) :
-    # seller_id = 116499542
-    # pack1000 = 1
-    # quantity_pack1000 = 1
-
+    
+    #Traemos los parametros para saber que se debe actualizar
+    ''' Creo un Objeto para conexión con BaseDeDatos'''
+    databaseName = 'ecommerce_prueba'
+    objectDataLog = DataLogManager(databaseName)
+    parameters = objectDataLog.extractUserData(seller_id)  #Trae todo products_info_customers
+    parameters_to_update = json.loads(parameters.loc[0,'parameters_to_update'])[0]
+    print('parameters_to_update: ',parameters_to_update)
     # CONSULTAMOS EN MYSQL LOS PRODUCTOS DE ESTE USUARIO CON APP_STATUS = 1 Y CON CAMBIO = SI
     #Traemos los productos correspondientes a actualizar
     ''' Creo un Objeto para conexión con BaseDeDatos'''
-    databaseName = 'ecommerce_prueba'
     objectDataLog = DataLogManager(databaseName)
     df = objectDataLog.productsToUpdate(seller_id)  #Trae todo products_info_customers
     print(f'df.shape: {df.shape}')
@@ -237,23 +240,37 @@ def updater_meli(seller_id, pack1000, quantity_pack1000) :
 
         #CREACION BODY PARA ACTUALIZAR PRECIO MERCADOLIBRE
         diccionario = {}
-        diccionario['id'] = "MANUFACTURING_TIME"
-        diccionario['value_name'] = MANUFACTURING_TIME
-        if MANUFACTURING_TIME == "null":
-            diccionario['value_id'] = "null"
+        print('parameter manufacturing: ',parameters_to_update['manufacturing_time'])
+        if parameters_to_update['manufacturing_time'] == 1:
+            #El usuario tiene habilitado actualizar tiempo de prep.
+            diccionario['id'] = "MANUFACTURING_TIME"
+            diccionario['value_name'] = MANUFACTURING_TIME
+            if MANUFACTURING_TIME == "null":
+                diccionario['value_id'] = "null"
         # Creamos el body actualizar precio Meli
         body = {}
             
-        if meli_regular_price > 0:    
-            body['price'] = meli_regular_price 
-            if meli_sale_price != 0: #AGREGADO 5/11/2022 
+        if meli_regular_price > 0:  
+            if parameters_to_update['price'] == 1: 
+                #EL usuario tiene habilitado actualizar el precio 
+                body['price'] = meli_regular_price 
+            if meli_sale_price != 0 and parameters_to_update['price'] == 1:
+                #EL usuario tiene habilitado actualizar el precio 
                 body['price'] = meli_sale_price 
-            body['available_quantity'] = available_quantity
-            body['sale_terms'] = [diccionario]
+            if parameters_to_update['stock_quantity'] == 1:
+                #EL usuario tiene habilitado actualizar el stock
+                body['available_quantity'] = available_quantity
+            if parameters_to_update['manufacturing_time'] == 1:
+                #EL usuario tiene habilitado actualizar garantia y tiempo prep.
+                body['sale_terms'] = [diccionario]
             #body["attributes"] = [{ 'id': 'GTIN', 'value_name':str(GTIN) }]
         else:
-            body['available_quantity'] = available_quantity
-            body['sale_terms'] = [diccionario]
+            if parameters_to_update['stock_quantity'] == 1:
+                #EL usuario tiene habilitado actualizar stock
+                body['available_quantity'] = available_quantity
+            if parameters_to_update['manufacturing_time'] == 1:
+                #EL usuario tiene habilitado actualizar garantia y tiempo prep.
+                body['sale_terms'] = [diccionario]
             #body["attributes"] = [{ 'id': 'GTIN', 'value_name':str(GTIN) }]
 
         if available_quantity > 0 :
@@ -298,7 +315,7 @@ def updater_meli(seller_id, pack1000, quantity_pack1000) :
         #ERROR CREANDO PROMO MELI, B0046ZQRNO: {"message":"The promo to update must have been started or pending.","error":"conflict_error","status":409,"cause":[]}
         
         # if statusError != 409:
-        print(f"ACTUALIZANDO PRECIO MELI: {body['price']}")
+        
         ###############################################################
         # REVISANDO VARIANTES
         ###############################################################
@@ -318,15 +335,30 @@ def updater_meli(seller_id, pack1000, quantity_pack1000) :
                 if rta != []:
                     idVariante = rta[0]['id']
                     #ACTUALIZAR PRECIO DE VARIANTE
+                    try:
+                        priceV = body['price']
+                    except:
+                        priceV = 0
+                    try:
+                        stockV = body['available_quantity']
+                    except:
+                        stockV = 0
+                    #se crea body para variante
                     bodyVariante = {
                         "variations": [{
                                 "id": idVariante,
-                                "price": body['price'],
-                                "available_quantity":body['available_quantity'] ,
+                                "price": priceV,
+                                "available_quantity":stockV,
                                 # "sale_terms": body['sale_terms'] 
                             }
                         ]
                     }
+                    #revisamos parametros a actualizar
+                    if parameters_to_update['stock_quantity'] == 0:
+                        #si no esta habilitado se eliminar clave valor
+                        bodyVariante['variations'][0].pop('available_quantity')
+                    if parameters_to_update['price'] == 0: 
+                        bodyVariante['variations'][0].pop('price')
                     print('bodyVariante: ',bodyVariante)
                     while secure == 0:
                         response = apiMeliController('PUT',ruta,access_token,bodyVariante)
@@ -337,7 +369,10 @@ def updater_meli(seller_id, pack1000, quantity_pack1000) :
                             secure,access_token = fixerr_item(rta,seller_id,access_token,databaseName,id)
                         else:
                             # print('2rta: ',rta)
-                            body = { "sale_terms": [diccionario]}
+                            if parameters_to_update['manufacturing_time'] == 1:
+                                body = { "sale_terms": [diccionario]}
+                            else:
+                                body = {}
                             secure = 1
                 else:
                     #No tiene variantes
@@ -346,8 +381,9 @@ def updater_meli(seller_id, pack1000, quantity_pack1000) :
         # if percentMeli >= 5 and percentMeli <= 75:
         #COMENTADO 5/11/2022
         # # # # body['price'] = meli_regular_price
+        print(f"ACTUALIZANDO PRODUCTO MELI: {body}")
         secure = 0
-        while secure == 0:
+        while secure == 0 and body != {}:
             #rta = api_instance2.resource_put(ruta,access_token,body) #async_req=True   
             response = apiMeliController('PUT',ruta,access_token,body)
             rta = json.loads(response.text)
